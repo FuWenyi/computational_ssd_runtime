@@ -1,0 +1,5 @@
+#define CLINT_BASE 0x38000000
+#define MTIMECMP_OFF 0x4000
+#define MTIME_OFF 0xbff8
+#define TIME_INTERVAL 0x1000000
+
