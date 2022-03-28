@@ -14,9 +14,9 @@ typedef struct {
     int pid;                            //pcd id
     char* name;         //application name
     bool priority;                      //true for ftl, false for app
-    uintptr_t access_addr_low;          //low bound for phy addr
-    uintptr_t access_addr_high;         //high bound for phy addr
-    int pmpcfg_idx;                     //the corresponding pmpcfg index
+    uintptr_t access_data_addr_base;          //low bound for phy addr | napot_addr_base
+    uintptr_t access_data_addr_size;         //high bound for phy addr
+    int data_pmpcfg_idx;                     //the corresponding data pmpcfg index
     void* app_entry;                    //the entry address of this app
     uintptr_t mepc;                      //restore epc
 } pcb_t;

@@ -30,22 +30,27 @@ static void handle_timer_interrupt() {
     //reserve the old epc, because it is interrupt, epc should point to next one
     cur_pcb->mepc = read_csr(mepc);
 
-    //diable the old app pmp
+    //remove the old pmp R|W access
     if (!cur_pcb->priority) {
-        uintptr_t cfg = PMP_W | PMP_R;
-        uintptr_t cfg_idx = cur_pcb->pmpcfg_idx;
-        write_csr(pmpcfg0, cfg << (cfg_idx * 8));
+        uintptr_t pmpcfg = read_csr(pmpcfg0);
+        uintptr_t cfg = PMP_NAPOT;
+        uintptr_t cfg_idx = cur_pcb->data_pmpcfg_idx;
+        uintptr_t mask = 0xff << (cfg_idx * 8);
+        pmpcfg = (pmpcfg & ~mask) | ((cfg << (cfg_idx * 8)) & mask);
+        write_csr(pmpcfg0, pmpcfg);
     }
 
     //schedule the thread
     scheduler();
 
-    //enable the new app pmp
+    //enable the new app pmp R|W access
     if (!cur_pcb->priority) {
-        uintptr_t cfg = PMP_TOR | PMP_W | PMP_R;
-        uintptr_t cfg_idx = cur_pcb->pmpcfg_idx;
-        uintptr_t old_cfg = read_csr(pmpcfg0);
-        write_csr(pmpcfg0, cfg << (cfg_idx * 8) | old_cfg);
+        uintptr_t pmpcfg = read_csr(pmpcfg0);
+        uintptr_t cfg = PMP_NAPOT | PMP_W | PMP_R;
+        uintptr_t cfg_idx = cur_pcb->data_pmpcfg_idx;
+        uintptr_t mask = 0xff << (cfg_idx * 8);
+        pmpcfg = (pmpcfg & ~mask) | ((cfg << (cfg_idx * 8)) & mask);
+        write_csr(pmpcfg0, pmpcfg);
     }
 
     //need to rearrange new mepc
