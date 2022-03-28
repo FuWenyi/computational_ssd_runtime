@@ -34,13 +34,16 @@ static void init_satp() {
 //int fwy_total_pcb_num;
 char ftl_name[4] = "ftl";
 char app1_name[5] = "kmp";
+char app2_name[10] = "histogram";
 char malware_name[8] = "malware";
 //uintptr_t scratch1[RISCV_PGSIZE / sizeof(uintptr_t)] __attribute__((aligned(RISCV_PGSIZE)));
-uintptr_t scratch2[RISCV_PGSIZE / sizeof(uintptr_t)] __attribute__((aligned(RISCV_PGSIZE)));
+//uintptr_t scratch2[RISCV_PGSIZE / sizeof(uintptr_t)] __attribute__((aligned(RISCV_PGSIZE)));
 
 static void init_pcb() {
+    total_pcb_num = 4;
+
     pcb_t* temp_pcb;
-    for (int i = 0; i < 3; i ++) {
+    for (int i = 0; i < total_pcb_num; i ++) {
         //temp_pcb = (pcb_t *)malloc(sizeof(pcb_t));
         temp_pcb = (pcb_t *)&mem_pcb[i];
         temp_pcb->pid = i;
@@ -58,7 +61,7 @@ static void init_pcb() {
     temp_pcb->app_entry = ftl;
     temp_pcb->mepc = (uintptr_t)ftl;
 
-    //init app1
+    //init app1:string_match
     temp_pcb = pcb[1];
     temp_pcb->name = app1_name;
     temp_pcb->priority = false;
@@ -68,18 +71,27 @@ static void init_pcb() {
     temp_pcb->app_entry = app1;
     temp_pcb->mepc = (uintptr_t)app1;
 
-    //init app2
+    //init app2:histogram
     temp_pcb = pcb[2];
-    temp_pcb->name = malware_name;
+    temp_pcb->name = app2_name;
     temp_pcb->priority = false;
     temp_pcb->access_data_addr_base = (uintptr_t)scratch2;
-    temp_pcb->access_data_addr_size = (uintptr_t)RISCV_PGSIZE;
+    temp_pcb->access_data_addr_size = (uintptr_t)HISTOGRAM_DATA_SIZE;
     temp_pcb->data_pmpcfg_idx = 3;
+    temp_pcb->app_entry = app2;
+    temp_pcb->mepc = (uintptr_t)app2;
+
+    //init malware
+    temp_pcb = pcb[3];
+    temp_pcb->name = malware_name;
+    temp_pcb->priority = false;
+    temp_pcb->access_data_addr_base = (uintptr_t)scratch3;
+    temp_pcb->access_data_addr_size = (uintptr_t)RISCV_PGSIZE;
+    temp_pcb->data_pmpcfg_idx = 4;
     temp_pcb->app_entry = malware;
     temp_pcb->mepc = (uintptr_t)malware;
 
     cur_pcb = pcb[0];
-    total_pcb_num = 3;
 }
 
 static void init_pmp() {
@@ -115,6 +127,15 @@ static void init_pmp() {
     napot_addr = (pcb[2]->access_data_addr_base + (pcb[2]->access_data_addr_size / 2 - 1)) >> PMP_SHIFT;
     write_csr(pmpcfg0, pmpcfg);
     write_csr(pmpaddr3, napot_addr);
+
+    //init malware
+    pmpcfg = read_csr(pmpcfg0);
+    cfg_idx = pcb[3]->data_pmpcfg_idx;
+    mask = 0xff << (cfg_idx * 8);
+    pmpcfg = (pmpcfg & ~mask) | ((cfg << (cfg_idx * 8)) & mask);
+    napot_addr = (pcb[3]->access_data_addr_base + (pcb[3]->access_data_addr_size / 2 - 1)) >> PMP_SHIFT;
+    write_csr(pmpcfg0, pmpcfg);
+    write_csr(pmpaddr4, napot_addr); 
 
     //pmpcfg0 :global instruction protect
     cfg = PMP_X | PMP_W | PMP_R | PMP_NAPOT;

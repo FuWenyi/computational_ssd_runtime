@@ -11,7 +11,7 @@
 //extern pcb_t* fwy_cur_pcb;
 //int fwy_total_pcb_num;
 pcb_t* pcb[MAX_PCB_SIZE];
-pcb_t mem_pcb[3];
+pcb_t mem_pcb[4];
 pcb_t* cur_pcb;
 int total_pcb_num;
 
