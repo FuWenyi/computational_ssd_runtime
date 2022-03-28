@@ -24,3 +24,4 @@ typedef struct {
 extern pcb_t* pcb[MAX_PCB_SIZE];
 extern pcb_t* cur_pcb;
 extern int total_pcb_num;
+extern pcb_t mem_pcb[3];

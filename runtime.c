@@ -14,6 +14,10 @@ void wr_mtimecmp(uintptr_t mtimecmp) {
     *(volatile uint64_t *)(CLINT_BASE + MTIMECMP_OFF) = mtimecmp;
 }
 
+void wr_freq(uintptr_t freq) {
+    *(volatile uint16_t *)(CLINT_BASE + FREQ_OFF) = freq;
+}
+
 static void init_satp() {
     //STAP_MODE_OFF禁用virtual memory
 #if __riscv_xlen == 64
@@ -28,10 +32,14 @@ static void init_satp() {
 //extern pcb_t* fwyfwy_pcb[MAX_PCB_SIZE];
 //extern pcb_t* fwy_cur_pcb;
 //int fwy_total_pcb_num;
+char ftl_name[4] = "ftl";
+char app1_name[5] = "app1";
+char malware_name[8] = "malware";
+uintptr_t scratch1[RISCV_PGSIZE / sizeof(uintptr_t)] __attribute__((aligned(RISCV_PGSIZE)));
+uintptr_t scratch2[RISCV_PGSIZE / sizeof(uintptr_t)] __attribute__((aligned(RISCV_PGSIZE)));
 
 static void init_pcb() {
     pcb_t* temp_pcb;
-    pcb_t mem_pcb[3];
     for (int i = 0; i < 3; i ++) {
         //temp_pcb = (pcb_t *)malloc(sizeof(pcb_t));
         temp_pcb = (pcb_t *)&mem_pcb[i];
@@ -41,8 +49,8 @@ static void init_pcb() {
 
     //init_ftl
     temp_pcb = pcb[0];
-    char ftl1[4] = "ftl";
-    temp_pcb->name = ftl1;
+    
+    temp_pcb->name = ftl_name;
     temp_pcb->priority = true;
     temp_pcb->access_addr_low = 0x0;
     temp_pcb->access_addr_high = 0xffffffff;
@@ -52,23 +60,21 @@ static void init_pcb() {
 
     //init app1
     temp_pcb = pcb[1];
-    char app1[5] = "app1";
-    temp_pcb->name = app1;
+    temp_pcb->name = app1_name;
     temp_pcb->priority = false;
-    temp_pcb->access_addr_low = APP1_ADDR_LOW;
-    temp_pcb->access_addr_high = APP1_ADDR_HIGH;
+    temp_pcb->access_addr_low = (uintptr_t)scratch1;
+    temp_pcb->access_addr_high = (uintptr_t)scratch1 + RISCV_PGSIZE;
     temp_pcb->pmpcfg_idx = 3;
     temp_pcb->app_entry = app1;
     temp_pcb->mepc = (uintptr_t)app1;
 
     //init app2
-    temp_pcb = pcb[1];
-    char malware[8] = "malware";
-    temp_pcb->name = malware;
+    temp_pcb = pcb[2];
+    temp_pcb->name = malware_name;
     temp_pcb->priority = false;
-    temp_pcb->access_addr_low = APP2_ADDR_LOW;
-    temp_pcb->access_addr_high = APP2_ADDR_HIGH;
-    temp_pcb->pmpcfg_idx = 4;
+    temp_pcb->access_addr_low = (uintptr_t)scratch2;
+    temp_pcb->access_addr_high = (uintptr_t)scratch2 + RISCV_PGSIZE;
+    temp_pcb->pmpcfg_idx = 5;
     temp_pcb->app_entry = malware;
     temp_pcb->mepc = (uintptr_t)malware;
 
@@ -89,18 +95,18 @@ static void init_pmp() {
     uintptr_t mask;
     int cfg_idx;
 
-    //init app1 addr bound: pmpcfg3 pmpaddr2 pmpaddr3
-    cfg = PMP_TOR | PMP_W | PMP_R;
+    //init app1 addr bound: pmpcfg3 pmpaddr2 pmpaddr3 cfg disable
+    cfg = PMP_W | PMP_R;
     cfg_idx = pcb[1]->pmpcfg_idx;
     write_csr(pmpcfg0, cfg << (cfg_idx * 8));
-    write_csr(pmpaddr2, APP1_ADDR_LOW >> PMP_SHIFT);
-    write_csr(pmpaddr3, APP1_ADDR_HIGH >> PMP_SHIFT);
+    write_csr(pmpaddr2, pcb[1]->access_addr_low >> PMP_SHIFT);
+    write_csr(pmpaddr3, pcb[1]->access_addr_high >> PMP_SHIFT);
 
     //init app2 addr bound: pmpcfg4 pmpaddr3 pmpaddr4
     cfg_idx = pcb[2]->pmpcfg_idx;
     write_csr(pmpcfg0, cfg << (cfg_idx * 8));
-    write_csr(pmpaddr3, APP2_ADDR_LOW >> PMP_SHIFT);
-    write_csr(pmpaddr4, APP2_ADDR_HIGH >> PMP_SHIFT);
+    write_csr(pmpaddr4, pcb[2]->access_addr_low >> PMP_SHIFT);
+    write_csr(pmpaddr5, pcb[2]->access_addr_high >> PMP_SHIFT);
 }
 
 static void init_csr() {
@@ -110,14 +116,19 @@ static void init_csr() {
     write_csr(mstatus, new_mstatus);
 
     //TODO:init_timer
+    wr_freq(10);
     wr_mtimecmp(TIME_INTERVAL);
     wr_mtime(0);
+
+    //mip and mie
+    uintptr_t new_mie = MTIE;
+    write_csr(mie, new_mie);
 }
 
 static void init_into_entry() {
     //将ra寄存器的入口地址设为ftl
     uintptr_t entry_addr = (uintptr_t)ftl;
-    asm volatile ("ld x1, (%0)" : "=r" (entry_addr));
+    asm volatile ("mv x1, %0" : "=r" (entry_addr));
     asm volatile ("ret");
 }
 

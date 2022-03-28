@@ -11,6 +11,7 @@
 //extern pcb_t* fwy_cur_pcb;
 //int fwy_total_pcb_num;
 pcb_t* pcb[MAX_PCB_SIZE];
+pcb_t mem_pcb[3];
 pcb_t* cur_pcb;
 int total_pcb_num;
 
@@ -19,8 +20,14 @@ void add_mtimecmp() {
     *(volatile uint64_t *)(CLINT_BASE + MTIMECMP_OFF) = mtimecmp + TIME_INTERVAL;
 }
 
+void scheduler() {
+    int pid = cur_pcb->pid;
+    int next_pid = ((pid + 1) == total_pcb_num) ? 0 : pid + 1; 
+    cur_pcb = pcb[next_pid];    
+}
+
 static void handle_timer_interrupt() {
-    //reserve the old epc
+    //reserve the old epc, because it is interrupt, epc should point to next one
     cur_pcb->mepc = read_csr(mepc);
 
     //diable the old app pmp
@@ -31,15 +38,14 @@ static void handle_timer_interrupt() {
     }
 
     //schedule the thread
-    int pid = cur_pcb->pid;
-    int next_pid = ((pid + 1) == total_pcb_num) ? 0 : pid + 1; 
-    cur_pcb = pcb[next_pid];
+    scheduler();
 
-    //enable the old app pmp
+    //enable the new app pmp
     if (!cur_pcb->priority) {
         uintptr_t cfg = PMP_TOR | PMP_W | PMP_R;
         uintptr_t cfg_idx = cur_pcb->pmpcfg_idx;
-        write_csr(pmpcfg0, cfg << (cfg_idx * 8));
+        uintptr_t old_cfg = read_csr(pmpcfg0);
+        write_csr(pmpcfg0, cfg << (cfg_idx * 8) | old_cfg);
     }
 
     //need to rearrange new mepc

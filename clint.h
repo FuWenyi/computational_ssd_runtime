@@ -1,5 +1,7 @@
 #define CLINT_BASE 0x38000000
 #define MTIMECMP_OFF 0x4000
 #define MTIME_OFF 0xbff8
-#define TIME_INTERVAL 0x1000000
+#define FREQ_OFF 0x8000
+#define TIME_INTERVAL 0x80000
+#define MTIE 1 << 7
 
